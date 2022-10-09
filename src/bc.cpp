@@ -1,32 +1,9 @@
-/*
-  Copyright 2019-2021 The University of New Mexico
-
-  This file is part of FIESTA.
-  
-  FIESTA is free software: you can redistribute it and/or modify it under the
-  terms of the GNU Lesser General Public License as published by the Free
-  Software Foundation, either version 3 of the License, or (at your option) any
-  later version.
-  
-  FIESTA is distributed in the hope that it will be useful, but WITHOUT ANY
-  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-  A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more
-  details.
-  
-  You should have received a copy of the GNU Lesser General Public License
-  along with FIESTA.  If not, see <https://www.gnu.org/licenses/>.
-*/
-
 #include "Kokkos_Core.hpp"
 #include "debug.hpp"
 #include "kokkosTypes.hpp"
 #include "input.hpp"
 #include <algorithm>
 #include "log2.hpp"
-#ifdef HAVE_MPI
-#include "mpi.hpp"
-#include "mpi.h"
-#endif
 
 #include <cstdio>
 
@@ -168,24 +145,6 @@ void applyBCs(struct inputConfig cf, class rk_func *f) {
   typedef Kokkos::MDRangePolicy<Kokkos::Rank<3>> policy_bl;
   typedef Kokkos::MDRangePolicy<Kokkos::Rank<4>> policy_bl4;
 
-#ifdef HAVE_MPI
-  f->timers["halo"].reset();
-  cf.m->haloExchange();
-  f->timers["halo"].accumulate();
-  f->timers["bc"].reset();
-//  if (cf.xPer == 1 && cf.xProcs==1)
-//    Kokkos::parallel_for(
-//        policy_bl({0, 0, 0}, {cf.ngj, cf.ngk, cf.nvt}),
-//        bc_xPer(cf.ng, cf.nci, f->var));
-//  if (cf.yPer == 1 && cf.yProcs==1)
-//    Kokkos::parallel_for(
-//        policy_bl({0, 0, 0}, {cf.ngi, cf.ngk, cf.nvt}),
-//        bc_yPer(cf.ng, cf.ncj, f->var));
-//  if (cf.ndim == 3 && cf.zPer == 1 && cf.zProcs==1)
-//    Kokkos::parallel_for(
-//        policy_bl({0, 0, 0}, {cf.ngi, cf.ngj, cf.nvt}),
-//        bc_zPer(cf.ng, cf.nck, f->var));
-#else
   f->timers["bc"].reset();
   if (cf.xPer == 1)
     Kokkos::parallel_for(
@@ -199,7 +158,6 @@ void applyBCs(struct inputConfig cf, class rk_func *f) {
     Kokkos::parallel_for(
         policy_bl({0, 0, 0}, {cf.ngi, cf.ngj, cf.nvt}),
         bc_zPer(cf.ng, cf.nck, f->var));
-#endif
 
   if (cf.xMinus < 0) {
     Kokkos::parallel_for(policy_bl({cf.ng, 0, 0}, {cf.ng+1, cf.ngj, cf.ngk}),
@@ -236,7 +194,7 @@ void applyBCs(struct inputConfig cf, class rk_func *f) {
 }
 
 BCType parseBC(std::string name){
-  string oldname = name;
+  std::string oldname = name;
   std::transform(name.begin(),name.end(),name.begin(),::tolower);
   name.erase(std::remove(name.begin(),name.end(),'-'),name.end());
   name.erase(std::remove(name.begin(),name.end(),'_'),name.end());

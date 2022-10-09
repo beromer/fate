@@ -1,36 +1,13 @@
-/*
-  Copyright 2019-2021 The University of New Mexico
-
-  This file is part of FIESTA.
-  
-  FIESTA is free software: you can redistribute it and/or modify it under the
-  terms of the GNU Lesser General Public License as published by the Free
-  Software Foundation, either version 3 of the License, or (at your option) any
-  later version.
-  
-  FIESTA is distributed in the hope that it will be useful, but WITHOUT ANY
-  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-  A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more
-  details.
-  
-  You should have received a copy of the GNU Lesser General Public License
-  along with FIESTA.  If not, see <https://www.gnu.org/licenses/>.
-*/
-
 #include <memory>
 #include "fiesta.hpp"
 #include "input.hpp"
 #include "debug.hpp"
-#ifdef HAVE_MPI
-#include "mpi.hpp"
-#endif
 #include "output.hpp"
 #include "rkfunction.hpp"
 #include "status.hpp"
 #include <set>
-#include "log.hpp"
+#include "log2.hpp"
 #include "block.hpp"
-//#include <csignal>
 #include <string>
 #include <vector>
 #include "luaReader.hpp"
@@ -40,7 +17,6 @@
 #include "log2.hpp"
 #include <iostream>
 #include "reader.hpp"
-#include "yogrt.h"
 #include "signal.hpp"
 #include "rk.hpp"
 
@@ -52,12 +28,7 @@ using namespace std;
 struct inputConfig Fiesta::initialize(struct inputConfig &cf, int argc, char **argv){
   struct commandArgs cArgs = getCommandlineOptions(argc, argv);
 
-  // Initialize MPI and get temporary rank.
   int temp_rank = 0;
-#ifdef HAVE_MPI
-  MPI_Init(NULL, NULL);
-  MPI_Comm_rank(MPI_COMM_WORLD, &temp_rank);
-#endif
 
   if (temp_rank == 0) printSplash(cArgs.colorFlag);
 
@@ -77,12 +48,6 @@ struct inputConfig Fiesta::initialize(struct inputConfig &cf, int argc, char **a
   Log::message("Executing Lua Input Script");
   executeConfiguration(cf,cArgs);
 
-#ifdef HAVE_MPI
-  // perform domain decomposition
-  Log::message("Initializing MPI Setup");
-  mpi_init(cf);
-  MPI_Barrier(cf.comm);
-#endif
   Log::message("Printing Configuration");
   printConfig(cf);
 
@@ -99,28 +64,6 @@ struct inputConfig Fiesta::initialize(struct inputConfig &cf, int argc, char **a
 //
 /* void Fiesta::initializeSimulation(struct inputConfig &cf, std::unique_ptr<class rk_func>&f){ */
 void Fiesta::initializeSimulation(Simulation &sim){
-#ifdef HAVE_MPI
-  if (sim.cf.visc || sim.cf.ceq){
-    if (sim.cf.mpiScheme == 1)
-      sim.cf.m = std::make_shared<orderedHaloExchange>(sim.cf,sim.f->var);
-    else if (sim.cf.mpiScheme == 2)
-      sim.cf.m = std::make_shared<orderedHostHaloExchange>(sim.cf,sim.f->var);
-    else{
-      Log::error("Invalid MPI type.  Only 'gpu-aware' and 'host' are available when viscosity or c-equations are enabled.");
-      exit(EXIT_FAILURE);
-    }
-  }else{
-    if (sim.cf.mpiScheme == 1)
-      sim.cf.m = std::make_shared<copyHaloExchange>(sim.cf,sim.f->var);
-    else if (sim.cf.mpiScheme == 2)
-      sim.cf.m = std::make_shared<packedHaloExchange>(sim.cf,sim.f->var);
-    else if (sim.cf.mpiScheme == 3)
-      sim.cf.m = std::make_shared<directHaloExchange>(sim.cf,sim.f->var);
-  }
-#endif
-  //sim.cf.w = std::make_shared<hdfWriter>(sim.cf,f);
-
-
   // If not restarting, generate initial conditions and grid
   if (sim.cf.restart == 0) {
     // Generate Grid Coordinates
@@ -137,21 +80,6 @@ void Fiesta::initializeSimulation(Simulation &sim){
     sim.cf.loadTimer.stop();
     Log::message("Initial conditions generated in: {}",sim.cf.loadTimer.get());
 
-    // sim.cf.writeTimer.start();
-    // // Write initial solution file
-    // if (sim.cf.write_freq > 0) {
-    //   sim.f->timers["solWrite"].reset();
-    //   sim.cf.w->writeSolution(sim.cf, f, 0, 0.00);
-    //   sim.f->timers["solWrite"].accumulate();
-    // }
-
-    // // Write Initial Restart File
-    // if (sim.cf.restart_freq > 0) {
-    //   sim.f->timers["resWrite"].reset();
-    //   sim.cf.w->writeRestart(sim.cf, f, 0, 0.00);
-    //   sim.f->timers["resWrite"].accumulate();
-    // }
-    // sim.cf.writeTimer.stop();
   }else{ // If Restarting, Load Restart File
     sim.cf.writeTimer.start();
     Log::message("Loading restart file:");
@@ -212,26 +140,6 @@ void Fiesta::checkIO(Simulation &sim, size_t t){
     }
   }
 
-  // Check Time-Remaining and Flag Restart
-  if (sim.cf.rank==0){
-    if(yogrt_remaining() < sim.cf.restartTimeRemaining){
-      sim.cf.restartFlag = 1;
-      sim.cf.exitFlag = 1;
-      Log::error("Time remaining is less than {}s:  Writing restart and exiting after timestep {}.",sim.cf.restartTimeRemaining,sim.cf.t);
-    }
-  }
-
-  #ifdef HAVE_MPI
-  {
-  int glblRestartFlag=0;
-  int glblExitFlag=0;
-  MPI_Allreduce(&sim.cf.restartFlag,&glblRestartFlag,1,MPI_INT,MPI_MAX,sim.cf.comm);
-  sim.cf.restartFlag=glblRestartFlag;
-  MPI_Allreduce(&sim.cf.exitFlag,&glblExitFlag,1,MPI_INT,MPI_MAX,sim.cf.comm);
-  sim.cf.exitFlag=glblExitFlag;
-  }
-  #endif
-
   // Write restart file if necessary
   if (sim.cf.restartFlag==1){
     sim.f->timers["resWrite"].reset();
@@ -259,17 +167,6 @@ void Fiesta::checkIO(Simulation &sim, size_t t){
 }
 
 void Fiesta::collectSignals(struct inputConfig &cf){
-#ifdef HAVE_MPI
-  int glblRestartFlag=0;
-  int glblExitFlag=0;
-
-  MPI_Allreduce(&cf.restartFlag,&glblRestartFlag,1,MPI_INT,MPI_MAX,cf.comm);
-  cf.restartFlag=glblRestartFlag;
-
-  MPI_Allreduce(&cf.exitFlag,&glblExitFlag,1,MPI_INT,MPI_MAX,cf.comm);
-  cf.exitFlag=glblExitFlag;
-#endif
-
   if (cf.restartFlag && cf.exitFlag)
       Log::warning("Recieved SIGURG:  Writing restart and exiting after timestep {}.",cf.t);
   else if (cf.restartFlag)
@@ -327,7 +224,4 @@ void Fiesta::step(Simulation &sim, size_t t){
 // clean up kokkos and mpi
 void Fiesta::finalize(){
   Kokkos::finalize();
-#ifdef HAVE_MPI
-  MPI_Finalize();
-#endif
 }

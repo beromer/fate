@@ -1,22 +1,3 @@
-/*
-  Copyright 2019-2021 The University of New Mexico
-
-  This file is part of FIESTA.
-  
-  FIESTA is free software: you can redistribute it and/or modify it under the
-  terms of the GNU Lesser General Public License as published by the Free
-  Software Foundation, either version 3 of the License, or (at your option) any
-  later version.
-  
-  FIESTA is distributed in the hope that it will be useful, but WITHOUT ANY
-  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-  A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more
-  details.
-  
-  You should have received a copy of the GNU Lesser General Public License
-  along with FIESTA.  If not, see <https://www.gnu.org/licenses/>.
-*/
-
 #include "block.hpp"
 #include "kokkosTypes.hpp"
 #include "hdf5.h"
@@ -34,9 +15,6 @@
 #include "timer.hpp"
 #include "fmt/core.h"
 #include <filesystem>
-#ifdef HAVE_MPI
-#include "mpi.h"
-#endif
 #include "h5.hpp"
 #include "log2.hpp"
 #include "fiesta.hpp"
@@ -74,11 +52,6 @@ blockWriter<T>::blockWriter(struct inputConfig& cf, std::unique_ptr<class rk_fun
   writeVarx=false;
   pad = (int)log10(cf.tend) + 1;
   chunkable = cf.chunkable;
-#ifdef HAVE_MPI
-  sliceComm = cf.comm;
-  sliceRank = cf.rank;
-  sliceSize = cf.numProcs;
-#endif
 
   if (cf.rank==0){
     if (!std::filesystem::exists(path)){
@@ -121,10 +94,6 @@ blockWriter<T>::blockWriter(struct inputConfig& cf, std::unique_ptr<class rk_fun
   stride(stride_),
   appStep(appStep_){
 
-#ifdef HAVE_MPI
-  sliceRank=MPI_PROC_NULL;
-  sliceSize=0;
-#endif
 
   for (int i=0; i<cf.ndim; ++i){
     if (gStart[i] > cf.globalCellDims[i]){
@@ -193,28 +162,8 @@ blockWriter<T>::blockWriter(struct inputConfig& cf, std::unique_ptr<class rk_fun
   }
 
   // check if any part of the block slice is in this subdomain
-#ifdef HAVE_MPI
-  myColor=MPI_UNDEFINED;
-  for (int i=0; i<cf.ndim; ++i){
-    slicePresent = slicePresent 
-                  && ( (cf.subdomainOffset[i]+cf.localCellDims[i]) >= gStart[i]
-                  &&    cf.subdomainOffset[i] <= gEnd[i]);
-  }
-
-  // set color and create subcommunicator
-  if (slicePresent){
-    myColor=1;
-  }
-
-  // create slice communicator
-  MPI_Comm_split(cf.comm,myColor,cf.rank,&sliceComm);
-#endif
 
   if (slicePresent){
-#ifdef HAVE_MPI
-    MPI_Comm_rank(sliceComm, &sliceRank);
-    MPI_Comm_size(sliceComm, &sliceSize);
-#endif
     for (int i=0; i<cf.ndim; ++i){
       offsetDelta=gStart[i]-cf.subdomainOffset[i]; //location of left edge of slice wrt left edge of subdomain
       if(offsetDelta > 0) lStart[i]=offsetDelta;   //if slice starts inside subdomain, set local start to slice edge
@@ -265,21 +214,6 @@ blockWriter<T>::blockWriter(struct inputConfig& cf, std::unique_ptr<class rk_fun
     // global dimensions to accomadate the stride.
     // Processes will use the minimum extent and end index.
     gMin=0;
-#ifdef HAVE_MPI
-    for (int i=0; i<cf.ndim; ++i){
-      MPI_Allreduce(&gEnd[i],&gMin,1,MPI_INT,MPI_MIN,sliceComm);
-      gEnd[i]=gMin;
-
-      MPI_Allreduce(&gExt[i],&gMin,1,MPI_INT,MPI_MIN,sliceComm);
-      gExt[i]=gMin;
-
-      MPI_Allreduce(&gExtG[i],&gMin,1,MPI_INT,MPI_MIN,sliceComm);
-      gExtG[i]=gMin;
-
-      gOrigin.push_back(gStart[i]*cf.dxvec[i]);
-      iodx.push_back(cf.dxvec[i]*stride[i]);
-    }
-#endif
   }
  
   // allocate pack buffers
@@ -314,17 +248,10 @@ void blockWriter<T>::write(struct inputConfig cf, std::unique_ptr<class rk_func>
   Log::message("[{}] Writing '{}'",cf.t,hdfPath);
   Timer::fiestaTimer writeTimer = Timer::fiestaTimer();
 
-  //#ifdef HAVE_MPI
-  //  MPI_Barrier(cf.comm);
-  //#endif
 
   if (myColor==1){
     h5Writer<T> writer;
-#ifdef HAVE_MPI
-    writer.open(sliceComm, MPI_INFO_NULL, hdfPath);
-#else
     writer.open(hdfPath);
-#endif
 
     if (cf.grid > 0){
       writer.openGroup("/Grid");
@@ -362,14 +289,7 @@ void blockWriter<T>::write(struct inputConfig cf, std::unique_ptr<class rk_func>
     writer.closeGroup();
 
     writer.close();
-    //#ifdef HAVE_MPI
-    //    MPI_Barrier(sliceComm);
-    //#endif
   }
-
-#ifdef HAVE_MPI
-  MPI_Barrier(cf.comm);
-#endif
 
   if (cf.rank==0){
     filesystem::path hdfFilePath{hdfPath};

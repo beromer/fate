@@ -1,28 +1,6 @@
-/*
-  Copyright 2019-2021 The University of New Mexico
-
-  This file is part of FIESTA.
-  
-  FIESTA is free software: you can redistribute it and/or modify it under the
-  terms of the GNU Lesser General Public License as published by the Free
-  Software Foundation, either version 3 of the License, or (at your option) any
-  later version.
-  
-  FIESTA is distributed in the hope that it will be useful, but WITHOUT ANY
-  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-  A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more
-  details.
-  
-  You should have received a copy of the GNU Lesser General Public License
-  along with FIESTA.  If not, see <https://www.gnu.org/licenses/>.
-*/
-
 #include <string>
 #include <vector>
 #include "hdf5.h"
-#ifdef HAVE_MPI
-#include "mpi.h"
-#endif
 #include "h5.hpp"
 #include <algorithm>
 #include "log2.hpp"
@@ -33,18 +11,6 @@
 template <typename T>
 h5Writer<T>::h5Writer(){}
 
-#ifdef HAVE_MPI
-template <typename T>
-void h5Writer<T>::open(MPI_Comm comm, MPI_Info info, std::string fname){
-  hid_t pid;
-
-  pid = H5Pcreate(H5P_FILE_ACCESS);
-  H5Pset_fapl_mpio(pid, comm, info);
-  file_id = H5Fcreate(fname.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, pid);
-  H5Pclose(pid);
-  MPI_Barrier(comm);
-}
-#else
 template <typename T>
 void h5Writer<T>::open(std::string fname){
   hid_t pid;
@@ -53,7 +19,6 @@ void h5Writer<T>::open(std::string fname){
   file_id = H5Fcreate(fname.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, pid);
   H5Pclose(pid);
 }
-#endif
 
 template <typename T>
 void h5Writer<T>::openRead(std::string fname){
@@ -122,9 +87,6 @@ void h5Writer<T>::write(std::string dname, int ndim,
 
   // create property list for collective dataset write
   plist_id = H5Pcreate(H5P_DATASET_XFER);
-#ifdef HAVE_MPI
-  H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
-#endif
 
   // write data
   H5Dwrite(dset_id, dtype_id, memspace, filespace, plist_id, data.data());

@@ -28,14 +28,11 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#ifdef HAVE_MPI
-#include "mpi.h"
-#endif
 #include <string>
 #include "timer.hpp"
 //#include "rkfunction.hpp"
 #include <map>
-#include "log.hpp"
+#include "log2.hpp"
 #include <vector>
 #include <memory>
 #include "block.hpp"
@@ -105,10 +102,6 @@ struct inputConfig {
   int nt, ni, nj, nk, nv, ns, nvt;
   int iStart, jStart, kStart;
   int iEnd, jEnd, kEnd;
-#ifdef HAVE_MPI
-  int mpiScheme;
-  MPI_Comm comm;
-#endif
   int cF, cB, cZ;
   int ng, ngi, ngj, ngk;
   bool xPer, yPer, zPer;

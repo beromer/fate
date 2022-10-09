@@ -1,29 +1,8 @@
-/*
-  Copyright 2019-2021 The University of New Mexico
-
-  This file is part of FIESTA.
-  
-  FIESTA is free software: you can redistribute it and/or modify it under the
-  terms of the GNU Lesser General Public License as published by the Free
-  Software Foundation, either version 3 of the License, or (at your option) any
-  later version.
-  
-  FIESTA is distributed in the hope that it will be useful, but WITHOUT ANY
-  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-  A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more
-  details.
-  
-  You should have received a copy of the GNU Lesser General Public License
-  along with FIESTA.  If not, see <https://www.gnu.org/licenses/>.
-*/
 #ifndef BLOCK_H
 #define BLOCK_H
 
 #include "rkfunction.hpp"
 #include <string>
-#ifdef HAVE_MPI
-#include "mpi.h"
-#endif
 #include "kokkosTypes.hpp"
 #include "hdf5.h"
 
@@ -62,11 +41,6 @@ class blockWriter {
     size_t lElems;
     size_t lElemsG;
 
-#ifdef HAVE_MPI
-    MPI_Comm sliceComm;
-    int sliceRank; 
-    int sliceSize;
-#endif
     int myColor;
 
     std::vector<T> varData;
@@ -91,11 +65,7 @@ class blockWriter {
     void dataPack(int, int, const std::vector<size_t>&, const std::vector<size_t>&, const std::vector<size_t>&,
                             const std::vector<size_t>&, std::vector<T>&, const FS4DH&, const int, const bool);
     
-#ifdef HAVE_MPI
-    hid_t openHDF5ForWrite(MPI_Comm, MPI_Info, std::string);
-#else
     hid_t openHDF5ForWrite(std::string);
-#endif
     void close_h5(hid_t);
 };
 

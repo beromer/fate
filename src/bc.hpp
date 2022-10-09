@@ -24,9 +24,6 @@
 #include "kokkosTypes.hpp"
 #include "input.hpp"
 #include <string>
-#ifdef HAVE_MPI
-#include "mpi.hpp"
-#endif
 
 enum class BCType {outflow,reflective,noslip,hydrostatic};
 /* void applyBCs(struct inputConfig cf, std::unique_ptr<class rk_func>&f); */

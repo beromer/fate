@@ -1,22 +1,3 @@
-/*
-  Copyright 2019-2021 The University of New Mexico
-
-  This file is part of FIESTA.
-  
-  FIESTA is free software: you can redistribute it and/or modify it under the
-  terms of the GNU Lesser General Public License as published by the Free
-  Software Foundation, either version 3 of the License, or (at your option) any
-  later version.
-  
-  FIESTA is distributed in the hope that it will be useful, but WITHOUT ANY
-  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-  A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more
-  details.
-  
-  You should have received a copy of the GNU Lesser General Public License
-  along with FIESTA.  If not, see <https://www.gnu.org/licenses/>.
-*/
-
 #ifndef LUAREADER_H
 #define LUAREADER_H
 
@@ -40,16 +21,16 @@ public:
   void getArray(std::vector<T>&,int);
 
   void getSpeciesData(struct inputConfig&);
-  void getIOBlock(struct inputConfig&, std::unique_ptr<class rk_func>&, int, vector<blockWriter<float>>&);
+  void getIOBlock(struct inputConfig&, std::unique_ptr<class rk_func>&, int, std::vector<blockWriter<float>>&);
 
   template <class T>
-  void get(std::initializer_list<string> keys, T& n);
+  void get(std::initializer_list<std::string> keys, T& n);
 
   template <class T, class S>
-  void get(std::initializer_list<string> keys, T& n, S d);
+  void get(std::initializer_list<std::string> keys, T& n, S d);
 
   template <class T>
-  void get(std::initializer_list<string> keys, std::vector<T>& v, int n);
+  void get(std::initializer_list<std::string> keys, std::vector<T>& v, int n);
 
   template <class T>
   void getValue(T& n);
@@ -59,8 +40,8 @@ public:
 private:
   lua_State *L;
 
-  string root;
-  string filename;
+  std::string root;
+  std::string filename;
 
   void error(lua_State *, const char *, ...);
 

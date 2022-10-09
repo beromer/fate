@@ -103,10 +103,10 @@ struct commandArgs getCommandlineOptions(int argc, char **argv){
   // If the --version command line option is present, then just print version
   // and compilation information and exit.
   if (cArgs.versionFlag) {
-    cout << "Fiesta" << endl;
-    cout << "Version:    '" << FIESTA_VERSION << "'" << endl;
-    cout << "Build Type: '" << FIESTA_OPTIONS << "'" << endl;
-    cout << "Build Time: '" << FIESTA_BTIME << "'" << endl;
+    std::cout << "Fiesta" << std::endl;
+    std::cout << "Version:    '" << FIESTA_VERSION << "'" << std::endl;
+    std::cout << "Build Type: '" << FIESTA_OPTIONS << "'" << std::endl;
+    std::cout << "Build Time: '" << FIESTA_BTIME << "'" << std::endl;
     exit(EXIT_SUCCESS);
   }
 
@@ -205,7 +205,7 @@ void executeConfiguration(struct inputConfig &cf, struct commandArgs cargs){
   //L.getArray("dx",dx,cf.ndim);
   L.get({"grid","dx"},cf.dxvec,cf.ndim);
 
-  vector<size_t> ni;
+  std::vector<size_t> ni;
   //L.getArray("ni",ni,cf.ndim);
   L.get({"grid","ni"},ni,cf.ndim);
   cf.glbl_nci = ni[0];
@@ -215,7 +215,7 @@ void executeConfiguration(struct inputConfig &cf, struct commandArgs cargs){
   else
     cf.glbl_nck = 1.0;
 
-  vector<size_t> procs;
+  std::vector<size_t> procs;
   //L.getArray("procs",procs,cf.ndim);
   L.get({"mpi","procs"},procs,cf.ndim);
   cf.xProcs=procs[0];
@@ -313,26 +313,6 @@ void executeConfiguration(struct inputConfig &cf, struct commandArgs cargs){
   if (scheme.compare("quick") == 0)
     cf.scheme = 3;
 
-#ifdef HAVE_MPI
-  // MPI halo exchange strategy from name
-  if (mpi.compare("host") == 0)
-    cf.mpiScheme = 1;
-  else if (mpi.compare("gpu-aware") == 0)
-    cf.mpiScheme = 2;
-  else if (mpi.compare("gpu-type") == 0)
-    cf.mpiScheme = 3;
-  else if (mpi.compare("gpu-aware-ordered") == 0)
-    cf.mpiScheme = 4;
-  else if (mpi.compare("gpu-aware-unordered") == 0)
-    cf.mpiScheme = 5;
-  else if (mpi.compare("host-ordered") == 0)
-    cf.mpiScheme = 6;
-  else {
-      printf("Invalid MPI communication scheme.\n");
-      exit(EXIT_FAILURE);
-  }
-#endif
-
   // Set Grid Options from Grid String
   if (grid.compare("generalized") == 0) {
     cf.grid = 1;
@@ -412,25 +392,6 @@ void executeConfiguration(struct inputConfig &cf, struct commandArgs cargs){
   cf.xmp = 0;
   cf.ymp = 0;
   cf.zmp = 0;
-#ifndef HAVE_MPI
-  cf.globalGridDims.push_back(cf.glbl_ni);
-  cf.globalGridDims.push_back(cf.glbl_nj);
-  cf.globalCellDims.push_back(cf.glbl_nci);
-  cf.globalCellDims.push_back(cf.glbl_ncj);
-  cf.localGridDims.push_back(cf.ni);
-  cf.localGridDims.push_back(cf.nj);
-  cf.localCellDims.push_back(cf.nci);
-  cf.localCellDims.push_back(cf.ncj);
-  cf.subdomainOffset.push_back(cf.iStart);
-  cf.subdomainOffset.push_back(cf.jStart);
-  if(cf.ndim==3){
-    cf.globalGridDims.push_back(cf.glbl_nk);
-    cf.globalCellDims.push_back(cf.glbl_nck);
-    cf.localGridDims.push_back(cf.nk);
-    cf.localCellDims.push_back(cf.nck);
-    cf.subdomainOffset.push_back(cf.kStart);
-  }
-#endif
 
   cf.ioThisStep = false;
 }

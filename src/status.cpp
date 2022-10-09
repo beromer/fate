@@ -1,36 +1,13 @@
-/*
-  Copyright 2019-2021 The University of New Mexico
-
-  This file is part of FIESTA.
-  
-  FIESTA is free software: you can redistribute it and/or modify it under the
-  terms of the GNU Lesser General Public License as published by the Free
-  Software Foundation, either version 3 of the License, or (at your option) any
-  later version.
-  
-  FIESTA is distributed in the hope that it will be useful, but WITHOUT ANY
-  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-  A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more
-  details.
-  
-  You should have received a copy of the GNU Lesser General Public License
-  along with FIESTA.  If not, see <https://www.gnu.org/licenses/>.
-*/
-
 #include "status.hpp"
 #include "input.hpp"
 #include <iomanip>
 #include <locale>
-#ifdef HAVE_MPI
-#include "mpi.h"
-#endif
 #include "output.hpp"
 #include "rkfunction.hpp"
 #include <cmath>
 #include "fmt/core.h"
 #include "pretty.hpp"
 #include "log2.hpp"
-#include "yogrt.h"
 #include <limits>
 
 using std::cout;
@@ -114,10 +91,6 @@ bool isConcern(FSCAL val){
 void statusCheck(int cFlag, struct inputConfig cf, std::unique_ptr<class rk_func>&f, FSCAL time, Timer::fiestaTimer &wall, Timer::fiestaTimer &sim) {
   FSCAL max[f->varxNames.size()];
   FSCAL min[f->varxNames.size()];
-#ifdef HAVE_MPI
-  FSCAL max_recv[f->varxNames.size()];
-  FSCAL min_recv[f->varxNames.size()];
-#endif
   ansiColors c(cFlag);
   string smin,smax;
 
@@ -135,14 +108,6 @@ void statusCheck(int cFlag, struct inputConfig cf, std::unique_ptr<class rk_func
       etrf = "?";
     cout << fmt::format("{: >8}ETR:       {}{}{}\n","", c(magenta),etrf,c(reset));
 
-    int tremain = yogrt_remaining();
-    if (tremain == std::numeric_limits<int>::max())
-      cout << fmt::format("{: >8}Time Left: {}inf{}\n","", c(magenta),c(reset));
-    else
-      cout << fmt::format("{: >8}Time Left: {}{}s{}\n","", c(magenta),tremain,c(reset));
-
-
-
     cout << fmt::format("{: <8}{: <16}{: >11}{: >11}\n","","","Min","Max");
     cout << std::flush;
   }
@@ -153,24 +118,12 @@ void statusCheck(int cFlag, struct inputConfig cf, std::unique_ptr<class rk_func
     for (int v = 0; v < cf.nvt; ++v) {
       Kokkos::parallel_reduce(cell_pol, maxVarFunctor2d(f->var, v), Kokkos::Max<FSCAL>(max[v]));
       Kokkos::parallel_reduce(cell_pol, minVarFunctor2d(f->var, v), Kokkos::Min<FSCAL>(min[v]));
-      #ifdef HAVE_MPI
-        MPI_Allreduce(&max[v], &max_recv[v], 1, MPI_DOUBLE, MPI_MAX, cf.comm);
-        MPI_Allreduce(&min[v], &min_recv[v], 1, MPI_DOUBLE, MPI_MIN, cf.comm);
-        max[v] = max_recv[v];
-        min[v] = min_recv[v];
-      #endif
     }
   } else {
     policy_f3 cell_pol = policy_f3({cf.ng, cf.ng, cf.ng}, {cf.ngi - cf.ng, cf.ngj - cf.ng, cf.ngk-cf.ng});
     for (int v = 0; v < cf.nvt; ++v) {
       Kokkos::parallel_reduce(cell_pol, maxVarFunctor3d(f->var, v), Kokkos::Max<FSCAL>(max[v]));
       Kokkos::parallel_reduce(cell_pol, minVarFunctor3d(f->var, v), Kokkos::Min<FSCAL>(min[v]));
-      #ifdef HAVE_MPI
-        MPI_Allreduce(&max[v], &max_recv[v], 1, MPI_DOUBLE, MPI_MAX, cf.comm);
-        MPI_Allreduce(&min[v], &min_recv[v], 1, MPI_DOUBLE, MPI_MIN, cf.comm);
-        max[v] = max_recv[v];
-        min[v] = min_recv[v];
-      #endif
     }
   }
 
@@ -201,24 +154,12 @@ void statusCheck(int cFlag, struct inputConfig cf, std::unique_ptr<class rk_func
     for (size_t v = 0; v < f->varxNames.size(); ++v) {
       Kokkos::parallel_reduce(cell_pol, maxVarFunctor2d(f->varx, v), Kokkos::Max<FSCAL>(max[v]));
       Kokkos::parallel_reduce(cell_pol, minVarFunctor2d(f->varx, v), Kokkos::Min<FSCAL>(min[v]));
-      #ifdef HAVE_MPI
-        MPI_Allreduce(&max[v], &max_recv[v], 1, MPI_DOUBLE, MPI_MAX, cf.comm);
-        MPI_Allreduce(&min[v], &min_recv[v], 1, MPI_DOUBLE, MPI_MIN, cf.comm);
-        max[v] = max_recv[v];
-        min[v] = min_recv[v];
-      #endif
     }
   } else {
     policy_f3 cell_pol = policy_f3({cf.ng,cf.ng,cf.ng}, {cf.ngi - cf.ng, cf.ngj - cf.ng, cf.ngk-cf.ng});
     for (size_t v = 0; v < f->varxNames.size(); ++v) {
       Kokkos::parallel_reduce(cell_pol, maxVarFunctor3d(f->varx, v), Kokkos::Max<FSCAL>(max[v]));
       Kokkos::parallel_reduce(cell_pol, minVarFunctor3d(f->varx, v), Kokkos::Min<FSCAL>(min[v]));
-      #ifdef HAVE_MPI
-        MPI_Allreduce(&max[v], &max_recv[v], 1, MPI_DOUBLE, MPI_MAX, cf.comm);
-        MPI_Allreduce(&min[v], &min_recv[v], 1, MPI_DOUBLE, MPI_MIN, cf.comm);
-        max[v] = max_recv[v];
-        min[v] = min_recv[v];
-      #endif
     }
   }
 
